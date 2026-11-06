@@ -1,12 +1,13 @@
-          
+
 import { useState, useEffect } from "react";
 import API from "./api";
 import "./App.css";
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("token"));
-
   // Authentication states
+  const [token, setToken] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -76,25 +77,53 @@ function App() {
     }
   };
 
-  // Verify login session
+  // Verify saved login session before showing dashboard
   useEffect(() => {
-    if (!token) return;
+    let isMounted = true;
 
-    API.get("/auth/me")
-      .then(() => {
-        loadJobs();
-        loadHistory("");
-      })
-      .catch((error) => {
+    const verifySession = async () => {
+      const savedToken = localStorage.getItem("token");
+
+      if (!savedToken) {
+        if (isMounted) {
+          setToken(null);
+          setAuthChecking(false);
+        }
+        return;
+      }
+
+      try {
+        await API.get("/auth/me");
+
+        if (isMounted) {
+          setToken(savedToken);
+          await loadJobs();
+          await loadHistory("");
+        }
+      } catch (error) {
         console.error("Authentication error:", error);
 
         localStorage.removeItem("token");
-        setToken(null);
-        setMessage("Session expired. Please log in again.");
-      });
+
+        if (isMounted) {
+          setToken(null);
+          setMessage("Session expired. Please log in again.");
+        }
+      } finally {
+        if (isMounted) {
+          setAuthChecking(false);
+        }
+      }
+    };
+
+    verifySession();
+
+    return () => {
+      isMounted = false;
+    };
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, []);
 
   // LOGIN
   const handleLogin = async (event) => {
@@ -120,6 +149,10 @@ function App() {
 
       const accessToken = response.data.access_token;
 
+      if (!accessToken) {
+        throw new Error("Access token was not received.");
+      }
+
       localStorage.setItem("token", accessToken);
       setToken(accessToken);
       setPassword("");
@@ -129,7 +162,9 @@ function App() {
       console.error("Login error:", error);
 
       setMessage(
-        error.response?.data?.detail || "Login failed. Please try again."
+        error.response?.data?.detail ||
+        error.message ||
+        "Login failed. Please try again."
       );
 
     } finally {
@@ -173,9 +208,7 @@ function App() {
         setCompanyName("");
         setPassword("");
 
-        setMessage(
-          "Account created successfully! Please log in."
-        );
+        setMessage("Account created successfully! Please log in.");
       }
 
     } catch (error) {
@@ -375,6 +408,23 @@ function App() {
     }
   };
 
+  // AUTHENTICATION LOADING SCREEN
+  if (authChecking) {
+    return (
+      <div className="app login-page">
+        <div className="section-card login-card">
+          <div className="logo">
+            <span className="logo-icon">H</span>
+            <span>HireAI</span>
+          </div>
+
+          <h2>Checking your session...</h2>
+          <p>Please wait while we verify your login.</p>
+        </div>
+      </div>
+    );
+  }
+
   // LOGIN AND SIGN UP SCREEN
   if (!token) {
     return (
@@ -409,18 +459,14 @@ function App() {
             {isRegistering && (
               <>
                 <div className="form-group">
-                  <label htmlFor="signup-name">
-                    Full Name
-                  </label>
+                  <label htmlFor="signup-name">Full Name</label>
 
                   <input
                     id="signup-name"
                     type="text"
                     placeholder="Enter your full name"
                     value={name}
-                    onChange={(event) =>
-                      setName(event.target.value)
-                    }
+                    onChange={(event) => setName(event.target.value)}
                     minLength={2}
                     maxLength={100}
                     autoComplete="name"
@@ -429,18 +475,14 @@ function App() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="signup-company">
-                    Company Name
-                  </label>
+                  <label htmlFor="signup-company">Company Name</label>
 
                   <input
                     id="signup-company"
                     type="text"
                     placeholder="Enter your company name"
                     value={companyName}
-                    onChange={(event) =>
-                      setCompanyName(event.target.value)
-                    }
+                    onChange={(event) => setCompanyName(event.target.value)}
                     minLength={2}
                     maxLength={150}
                     required
@@ -450,27 +492,21 @@ function App() {
             )}
 
             <div className="form-group">
-              <label htmlFor="auth-email">
-                Email Address
-              </label>
+              <label htmlFor="auth-email">Email Address</label>
 
               <input
                 id="auth-email"
                 type="email"
                 placeholder="Enter your email"
                 value={email}
-                onChange={(event) =>
-                  setEmail(event.target.value)
-                }
+                onChange={(event) => setEmail(event.target.value)}
                 autoComplete="email"
                 required
               />
             </div>
 
             <div className="form-group">
-              <label htmlFor="auth-password">
-                Password
-              </label>
+              <label htmlFor="auth-password">Password</label>
 
               <input
                 id="auth-password"
@@ -481,14 +517,10 @@ function App() {
                     : "Enter your password"
                 }
                 value={password}
-                onChange={(event) =>
-                  setPassword(event.target.value)
-                }
+                onChange={(event) => setPassword(event.target.value)}
                 minLength={isRegistering ? 8 : undefined}
                 autoComplete={
-                  isRegistering
-                    ? "new-password"
-                    : "current-password"
+                  isRegistering ? "new-password" : "current-password"
                 }
                 required
               />
@@ -510,12 +542,7 @@ function App() {
 
           </form>
 
-          <div
-            style={{
-              marginTop: 20,
-              textAlign: "center",
-            }}
-          >
+          <div style={{ marginTop: 20, textAlign: "center" }}>
             {isRegistering
               ? "Already have an account? "
               : "Don't have an account? "}
@@ -596,16 +623,11 @@ function App() {
 
         <header className="topbar">
           <div>
-            <p className="topbar-small">
-              AI RECRUITMENT PLATFORM
-            </p>
+            <p className="topbar-small">AI RECRUITMENT PLATFORM</p>
             <h2>Recruiter Dashboard</h2>
           </div>
 
-          <button
-            className="clear-button"
-            onClick={handleLogout}
-          >
+          <button className="clear-button" onClick={handleLogout}>
             Logout ↗
           </button>
         </header>
@@ -613,9 +635,7 @@ function App() {
         {/* Welcome Banner */}
         <section className="welcome-banner">
           <div>
-            <p className="banner-tag">
-              SMART HIRING STARTS HERE
-            </p>
+            <p className="banner-tag">SMART HIRING STARTS HERE</p>
 
             <h1>Find the right talent faster.</h1>
 
@@ -653,17 +673,13 @@ function App() {
         </section>
 
         {/* Create Job */}
-        <section
-          className="section-card"
-          id="job-section"
-        >
+        <section className="section-card" id="job-section">
+
           <div className="section-heading">
             <div>
               <p className="section-tag">STEP 01</p>
               <h2>Create Job Requirements</h2>
-              <p>
-                Define the skills and experience you need.
-              </p>
+              <p>Define the skills and experience you need.</p>
             </div>
           </div>
 
@@ -676,9 +692,7 @@ function App() {
 
                 <input
                   value={jobTitle}
-                  onChange={(event) =>
-                    setJobTitle(event.target.value)
-                  }
+                  onChange={(event) => setJobTitle(event.target.value)}
                   placeholder="Java Backend Developer"
                   required
                 />
@@ -689,9 +703,7 @@ function App() {
 
                 <input
                   value={requiredSkills}
-                  onChange={(event) =>
-                    setRequiredSkills(event.target.value)
-                  }
+                  onChange={(event) => setRequiredSkills(event.target.value)}
                   placeholder="Java, Spring Boot, SQL"
                   required
                 />
@@ -702,9 +714,7 @@ function App() {
 
                 <input
                   value={preferredSkills}
-                  onChange={(event) =>
-                    setPreferredSkills(event.target.value)
-                  }
+                  onChange={(event) => setPreferredSkills(event.target.value)}
                   placeholder="AWS, Docker, Git"
                 />
               </div>
@@ -714,9 +724,7 @@ function App() {
 
                 <input
                   value={experience}
-                  onChange={(event) =>
-                    setExperience(event.target.value)
-                  }
+                  onChange={(event) => setExperience(event.target.value)}
                   placeholder="1-2 years"
                 />
               </div>
@@ -727,9 +735,7 @@ function App() {
                 <textarea
                   rows="4"
                   value={jobDescription}
-                  onChange={(event) =>
-                    setJobDescription(event.target.value)
-                  }
+                  onChange={(event) => setJobDescription(event.target.value)}
                   placeholder="Describe job responsibilities and qualifications..."
                 />
               </div>
@@ -741,18 +747,13 @@ function App() {
               type="submit"
               disabled={loadingJob}
             >
-              {loadingJob
-                ? "Creating Job..."
-                : "Create Job →"}
+              {loadingJob ? "Creating Job..." : "Create Job →"}
             </button>
 
           </form>
 
           {jobs.length > 0 && (
-            <div
-              className="form-group"
-              style={{ marginTop: 22 }}
-            >
+            <div className="form-group" style={{ marginTop: 22 }}>
               <label>Select Existing Job</label>
 
               <select
@@ -766,10 +767,7 @@ function App() {
                 }}
               >
                 {jobs.map((job) => (
-                  <option
-                    key={job.job_id}
-                    value={job.job_id}
-                  >
+                  <option key={job.job_id} value={job.job_id}>
                     {job.job_title}
                   </option>
                 ))}
@@ -780,17 +778,13 @@ function App() {
         </section>
 
         {/* Resume Upload */}
-        <section
-          className="section-card"
-          id="upload-section"
-        >
+        <section className="section-card" id="upload-section">
+
           <div className="section-heading">
             <div>
               <p className="section-tag">STEP 02</p>
               <h2>Upload Candidate Resumes</h2>
-              <p>
-                Upload multiple PDF resumes for AI analysis.
-              </p>
+              <p>Upload multiple PDF resumes for AI analysis.</p>
             </div>
           </div>
 
@@ -798,10 +792,7 @@ function App() {
             <h3>Upload your resumes</h3>
             <p>Select PDF files from your computer.</p>
 
-            <label
-              htmlFor="resume-upload"
-              className="upload-button"
-            >
+            <label htmlFor="resume-upload" className="upload-button">
               + Choose PDF Files
             </label>
 
@@ -821,8 +812,7 @@ function App() {
               key={`${file.name}-${index}`}
             >
               <span>
-                📄 {file.name} (
-                {(file.size / 1024).toFixed(1)} KB)
+                📄 {file.name} ({(file.size / 1024).toFixed(1)} KB)
               </span>
 
               <button
@@ -853,26 +843,20 @@ function App() {
         </section>
 
         {/* Candidate Rankings */}
-        <section
-          className="section-card"
-          id="results-section"
-        >
+        <section className="section-card" id="results-section">
+
           <div className="section-heading">
             <div>
               <p className="section-tag">STEP 03</p>
               <h2>Candidate Rankings</h2>
-              <p>
-                Compare candidate scores and skills.
-              </p>
+              <p>Compare candidate scores and skills.</p>
             </div>
           </div>
 
           {results.length === 0 ? (
             <div className="empty-state">
               <h3>No candidates analyzed yet</h3>
-              <p>
-                Upload resumes to view candidate rankings.
-              </p>
+              <p>Upload resumes to view candidate rankings.</p>
             </div>
           ) : (
             <div className="table-wrapper">
@@ -891,9 +875,7 @@ function App() {
 
                 <tbody>
                   {results.map((candidate, index) => (
-                    <tr
-                      key={candidate.candidate_id || index}
-                    >
+                    <tr key={candidate.candidate_id || index}>
                       <td>
                         <span className="rank-badge">
                           #{candidate.rank || index + 1}
@@ -932,10 +914,8 @@ function App() {
         </section>
 
         {/* Screening History */}
-        <section
-          className="section-card"
-          id="history-section"
-        >
+        <section className="section-card" id="history-section">
+
           <div className="section-heading">
 
             <div>
@@ -949,9 +929,7 @@ function App() {
               onClick={() => loadHistory(jobId)}
               disabled={loadingHistory}
             >
-              {loadingHistory
-                ? "Loading..."
-                : "↻ Refresh"}
+              {loadingHistory ? "Loading..." : "↻ Refresh"}
             </button>
 
           </div>
@@ -981,20 +959,12 @@ function App() {
                   {history.map((item) => (
                     <tr key={item.screening_id}>
                       <td>{item.candidate_name}</td>
-
-                      <td>
-                        {item.email || "Not available"}
-                      </td>
-
+                      <td>{item.email || "Not available"}</td>
                       <td>{item.job_title}</td>
-
                       <td>{item.final_score}%</td>
-
                       <td>
                         {item.screening_date
-                          ? new Date(
-                              item.screening_date
-                            ).toLocaleString()
+                          ? new Date(item.screening_date).toLocaleString()
                           : "Not available"}
                       </td>
                     </tr>
