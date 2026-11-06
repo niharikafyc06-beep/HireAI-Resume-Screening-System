@@ -19,3 +19,8 @@ frontend/dist/
 # IDE
 .vscode/
 .DS_Store
+*.db
+# Local databases
+*.db
+*.sqlite
+*.sqlite3

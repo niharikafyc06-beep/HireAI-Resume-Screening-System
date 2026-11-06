@@ -6,7 +6,7 @@ from fastapi.openapi.utils import get_openapi
 from routes.resume import router as resume_router
 from routes.job import router as job_router
 from routes.screening import router as screening_router
-
+from routes.auth import router as auth_router
 
 app = FastAPI(
     title="AI Resume Screening & Candidate Ranking System",
@@ -24,10 +24,11 @@ app.add_middleware(
 )
 
 
+
 app.include_router(resume_router)
 app.include_router(job_router)
 app.include_router(screening_router)
-
+app.include_router(auth_router)
 
 @app.get("/")
 def home():

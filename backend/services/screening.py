@@ -1,3 +1,4 @@
+
 import re
 
 from services.matcher import calculate_similarity
@@ -12,7 +13,7 @@ def get_required_experience(experience_text):
         return None
 
     match = re.search(
-        r'(\d+(?:\.\d+)?)\s*\+?\s*years?',
+        r"(\d+(?:\.\d+)?)\s*\+?\s*years?",
         experience_text,
         re.IGNORECASE
     )
@@ -28,14 +29,14 @@ def screen_candidate(resume_text: str, job):
     # Extract candidate information
     candidate_details = extract_candidate_details(resume_text)
 
-    # Extract skills
+    # Extract resume skills
     resume_skills = extract_skills(resume_text)
 
-    # Get job requirements
-    required_skills = job.required_skills
-    preferred_skills = job.preferred_skills
+    # Get job requirements from database
+    required_skills = job.required_skills or []
+    preferred_skills = job.preferred_skills or []
 
-    job_description = job.job_description or ""
+    job_description = job.description or ""
 
     # Calculate semantic similarity
     semantic_score = calculate_similarity(
@@ -75,7 +76,7 @@ def screen_candidate(resume_text: str, job):
 
     candidate_experience = candidate_details["experience_years"]
 
-    if required_experience is None:
+    if required_experience is None or required_experience == 0:
         experience_score = 100
 
     elif candidate_experience >= required_experience:
