@@ -1,16 +1,30 @@
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
+
+from functools import lru_cache
 
 
-# Load the AI model
-model = SentenceTransformer("all-MiniLM-L6-v2")
-
-
-def calculate_similarity(resume_text: str, job_description: str) -> float:
+@lru_cache(maxsize=1)
+def get_model():
     """
-    Compare a resume with a job description
-    and return an AI similarity score from 0 to 100.
+    Load the AI model only when required.
+    Reuse it for subsequent screening requests.
     """
+    from sentence_transformers import SentenceTransformer
+
+    return SentenceTransformer("all-MiniLM-L6-v2")
+
+
+def calculate_similarity(
+    resume_text: str,
+    job_description: str
+) -> float:
+    """
+    Calculate semantic similarity between resume and job description.
+    Returns a score from 0 to 100.
+    """
+
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    model = get_model()
 
     resume_embedding = model.encode([resume_text])
     job_embedding = model.encode([job_description])
@@ -20,6 +34,4 @@ def calculate_similarity(resume_text: str, job_description: str) -> float:
         job_embedding
     )[0][0]
 
-    score = round(float(similarity) * 100, 2)
-
-    return score
+    return round(float(similarity) * 100, 2)
