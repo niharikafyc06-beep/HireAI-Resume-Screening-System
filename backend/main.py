@@ -3,10 +3,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
+from database import Base, engine
+
+# Import models so SQLAlchemy registers all database tables.
+import models
+
 from routes.resume import router as resume_router
 from routes.job import router as job_router
 from routes.screening import router as screening_router
 from routes.auth import router as auth_router
+
 
 app = FastAPI(
     title="AI Resume Screening & Candidate Ranking System",
@@ -15,6 +21,13 @@ app = FastAPI(
 )
 
 
+# Create missing database tables during application startup.
+@app.on_event("startup")
+def create_database_tables():
+    Base.metadata.create_all(bind=engine)
+
+
+# CORS configuration.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,11 +37,12 @@ app.add_middleware(
 )
 
 
-
+# Register routers.
 app.include_router(resume_router)
 app.include_router(job_router)
 app.include_router(screening_router)
 app.include_router(auth_router)
+
 
 @app.get("/")
 def home():
@@ -44,10 +58,7 @@ def health():
     }
 
 
-# ============================================================
-# FIX SWAGGER FILE UPLOAD DISPLAY
-# ============================================================
-
+# Fix Swagger file upload display.
 def custom_openapi():
 
     if app.openapi_schema:
@@ -77,7 +88,6 @@ def custom_openapi():
 
             for item in schema:
                 fix_file_schema(item)
-
 
     fix_file_schema(openapi_schema)
 
